@@ -6,20 +6,47 @@ import { Link } from 'react-scroll';
 import './App.css';
 import { toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
 
+/////////////////////////////////////
 //-------- GLOBAL PARAMETERS --------
- //-------- UI --------
-const PARAM_TOTAL_DURATION_NAME = 'totalDuration';
-const PARAM_CURRENT_LVL_NAME = 'currentLvl';
-const PARAM_TIME_LEFT_NAME = 'timeLeft';
-const PARAM_SECOND = 1000;
-const PARAM_DEFAULT_TIME_LEFT_DISPLAY = '--:--';
+/////////////////////////////////////
+
+//-------- GENERAL --------
+const ONE_SECOND = 1000;
+
+// TODO dynamize
+const TEMP_BLINDS = [ 
+  { sb: 10, bb: 20 },
+  { sb: 20, bb: 40 },
+  { sb: 30, bb: 60 },
+  { sb: 50, bb: 100 },
+  { sb: 75, bb: 150 },
+  { sb: 100, bb: 200 },
+  { sb: 150, bb: 300 },
+  { sb: 200, bb: 400 },
+  { sb: 300, bb: 600 },
+  { sb: 400, bb: 800 },
+  { sb: 500, bb: 1000 },
+  { sb: 750, bb: 1500 },
+  { sb: 1000, bb: 2000 }, 
+];
+
+//-------- UI --------
+const UI_DEFAULT_TIME_LEFT_DISPLAY = '--:--';
+
+//-------- PERSISTENCE --------
+const DB_KEY_TOTAL_DURATION = 'totalDuration';
+const DB_KEY_TIME_LEFT = 'timeLeft';
+const DB_KEY_CURRENT_LVL = 'currentLvl';
 
 //-------- GAME --------
-const PARAM_MIN_DURATION = 1;
-const PARAM_MAX_DURATION = 4.5;
-const PARAM_STEP_DURATION = .5;
+const GAME_MIN_DURATION = 1;
+const GAME_MAX_DURATION = 4.5;
+const GAME_STEP_DURATION = .5;
 
-/* APPLICATION */
+
+/////////////////////////////////////
+//-------- APPLICATION --------
+/////////////////////////////////////
 class App extends Component {
 
   constructor(props) {
@@ -28,12 +55,12 @@ class App extends Component {
     this.state = {
       //-------- UI --------
       stickyMenuActive: false,
-      isUserChoiceOK: false,
+      paused: true,
 
       //-------- GAME --------
-      paused: true,
-      timeLeft: [0, 0, 0],
       totalDuration: '',
+      timeLeft: [0, 0, 0],
+      currentLvl: 0
     };
 
     //-------- GENERAL --------
@@ -42,21 +69,23 @@ class App extends Component {
     //-------- UI --------
     this.activateStickyMenu = this.activateStickyMenu.bind(this);
     this.deactivateStickyMenu = this.deactivateStickyMenu.bind(this);
-    this.activateButton = this.activateButton.bind(this);
-    this.deactivateButton = this.deactivateButton.bind(this);
-
-    //-------- PERSISTENCE --------
-    this.saveConfiguration = this.saveConfiguration.bind(this);
-    this.loadConfiguration = this.loadConfiguration.bind(this);
-
-    //-------- GAME --------
-    this.createGame = this.createGame.bind(this);
+    this.handleTotalDurationChange = this.handleTotalDurationChange.bind(this);
+    this.isUserChoiceOK = this.isUserChoiceOK.bind(this);
     this.play = this.play.bind(this);
     this.pause = this.pause.bind(this);
     this.previous = this.previous.bind(this);
     this.next = this.next.bind(this);
+
+    //-------- PERSISTENCE --------
+    this.updateDb = this.updateDb.bind(this);
+    this.readDb = this.readDb.bind(this);
+
+    //-------- GAME --------
+    this.loadGame = this.loadGame.bind(this);
     this.decrementTime = this.decrementTime.bind(this);
-    this.handleTotalDurationChange = this.handleTotalDurationChange.bind(this);
+    this.gotoPreviousLvl = this.gotoPreviousLvl.bind(this);
+    this.gotoNextLvl = this.gotoNextLvl.bind(this);
+    this.gotoLvl = this.gotoLvl.bind(this);
   }
   
   componentDidMount() {
@@ -64,9 +93,30 @@ class App extends Component {
     this.init();
   }
   
+  //-------- GENERAL --------
   init() {
     console.log('init');
-    this.loadConfiguration();
+
+    // load DATABASE's DATA in STATE
+    const totalDuration = this.readDb(DB_KEY_TOTAL_DURATION);
+    const timeLeft = this.readDb(DB_KEY_TIME_LEFT);
+    const currentLvl = this.readDb(DB_KEY_CURRENT_LVL);
+
+    if (totalDuration) {
+      this.setState({ totalDuration: totalDuration });
+    }
+    if (timeLeft) {
+      this.setState({ timeLeft: timeLeft });
+    } 
+    else {
+      // TODO dynamize
+      this.setState({
+        timeLeft: [0, 27, 0]
+      });
+    }
+    if (currentLvl) {
+      this.setState({ currentLvl: currentLvl });
+    }
   }
 
   //-------- UI --------
@@ -82,82 +132,23 @@ class App extends Component {
       stickyMenuActive: false
     });
   }
-  activateButton() {
-    console.log('activateButton');
+  handleTotalDurationChange(e) {
+    console.log('handleTotalDurationChange');
+    const input = e.target.value;
+    if(! this.isDurationValid(input)) {
+      return;
+    }
+    const val = Number.parseFloat(e.target.value);
     this.setState({
-      isUserChoiceOK: true,
+      totalDuration: val,
     });
   }
-  deactivateButton() {
-    console.log('deactivateButton');
-    this.setState({
-      isUserChoiceOK: false,
-    });
-  }
-  // FIXME good signature?
-  checkButton(totalDuration) {
-    const valid = this.isDurationValid(totalDuration);
-    if (valid) {
-      this.activateButton();
-    } else {
-      this.deactivateButton();
-    }
-  }
-
-  //-------- PERSISTENCE --------
-  saveConfiguration() {
-    console.log('saveConfiguration');
-    const totalDuration = this.state.totalDuration;
-    if (totalDuration) {
-      localStorage.setItem(PARAM_TOTAL_DURATION_NAME, totalDuration);
-    }
-    // localStorage.setItem(PARAM_CURRENT_LVL_NAME, 0);
-    // localStorage.setItem(PARAM_TIME_LEFT_NAME, 0);
-  }
-  loadConfiguration() {
-    console.log('loadConfiguration');
-
-    // totalDuration
-    const totalDuration = localStorage.getItem(PARAM_TOTAL_DURATION_NAME);
-    if (totalDuration) {
-      this.setState({
-        totalDuration: totalDuration
-      });
-
-      // FIXME move?
-      this.checkButton(totalDuration);
-
-      // FIXME to move
-      // FIXME
-      const timeLeft = [0, 27, 0];
-      this.setState({
-        timeLeft: timeLeft
-      });
-    }
-
-    // timeLeft
-    // TODO refactor conversion
-    const timeLeft = JSON.parse(localStorage.getItem(PARAM_TIME_LEFT_NAME));
-    console.log(timeLeft);
-    if (timeLeft) {
-      this.setState({
-        timeLeft: timeLeft
-      });
-    }
-    
-    // let currentLvl = localStorage.getItem(PARAM_CURRENT_LVL_NAME);
-    // if (currentLvl) {
-    // }
-  };
-
-  //-------- GAME --------
-  createGame() {
-    console.log('createGame');
-    this.saveConfiguration();
+  isUserChoiceOK(totalDuration) {
+    return this.isDurationValid(totalDuration);
   }
   play() {
     console.log('play');
-    this.interval = setInterval(() => this.decrementTime(), PARAM_SECOND);
+    this.interval = setInterval(() => this.decrementTime(), ONE_SECOND);
 
     this.setState({
       paused: false
@@ -173,48 +164,98 @@ class App extends Component {
   }
   previous() {
     console.log('previous');
+    this.gotoPreviousLvl();
   }
   next() {
     console.log('next');
+    this.gotoNextLvl();
   }
-  handleTotalDurationChange(e) {
-    console.log('handleTotalDurationChange');
-    
-    // TODO improve checking
-    if(e.target.value === '' || Number.isNaN(e.target.value)) {
-      return;
-    }
 
-    const val = Number.parseFloat(e.target.value);
-    this.checkButton(val);
-    
-    this.setState({
-      totalDuration: val,
-    });
+
+  //-------- PERSISTENCE --------
+  updateDb(key, val) {
+    console.log('updateDb');
+    if (val !== undefined) {
+      localStorage.setItem(key, JSON.stringify(val));
+    }
+  }
+  readDb(key) {
+    console.log('readDb');
+    return JSON.parse(localStorage.getItem(key));
+  };
+
+
+  //-------- GAME --------
+  loadGame() {
+    console.log('loadGame');
+    // totalDuration is previously in STATE (see. handleTotalDurationChange)
+    const totalDuration = this.state.totalDuration;
+    // TODO timeLeft is calculated
+    const timeLeft = [0, 15, 0];
+    const currentLvl = 0;
+
+    // persist
+    this.updateDb(DB_KEY_TOTAL_DURATION, totalDuration);
+    this.updateDb(DB_KEY_TIME_LEFT, timeLeft);
+    this.updateDb(DB_KEY_CURRENT_LVL, currentLvl);
   }
   decrementTime() {
     console.log('decrementTime');
-    // subtract 1s
-    const timeLeft = this.state.timeLeft;
+    // subtract 1 sec.
+    const timeLeft = this.state.timeLeft
     const newVal = subtractOneSecond(timeLeft)
+
+    // update STATE
     this.setState({
       timeLeft: newVal
     });
 
-    // save it
-    localStorage.setItem(PARAM_TIME_LEFT_NAME, JSON.stringify(timeLeft));
+    // update DB
+    this.updateDb(DB_KEY_TIME_LEFT, newVal);
 
     // when 00:00 is reached, throw an event
     // stop game OR go to next level
+  }
+  gotoPreviousLvl() {
+    console.log('gotoPreviousLvl');
+    const newLvl = this.state.currentLvl - 1;
+    this.gotoLvl(newLvl);
+  }
+  gotoNextLvl() {
+    console.log('gotoNextLvl');
+    const newLvl = this.state.currentLvl + 1;
+    this.gotoLvl(newLvl);
+  }
+  gotoLvl(lvl) {
+    console.log('gotoLvl');
+
+    // FIXME move functionnal code?
+    // check if action is possible
+    if(lvl < 0 || lvl >= TEMP_BLINDS.length) {
+      return;
+    }
+
+    // update STATE
+    this.setState({currentLvl: lvl});
+
+    // update DB
+    this.updateDb(DB_KEY_CURRENT_LVL, lvl)
+
+    // TODO play sound
+
   }
 
   //-------- UTILS --------
   isDurationValid(input) {
     console.log('isDurationValid');
-    return (!Number.isNaN(input)
-            && input >= PARAM_MIN_DURATION && input <= PARAM_MAX_DURATION 
-            && (input % PARAM_STEP_DURATION === 0));
+    return (input !== '' && !Number.isNaN(input)
+            && input >= GAME_MIN_DURATION && input <= GAME_MAX_DURATION 
+            && (input % GAME_STEP_DURATION === 0));
   }
+  toDisplayingLvl(input) {
+    return input + 1;
+  }
+
 
   render() {
     // /!\ 2 WARNINGS
@@ -222,12 +263,19 @@ class App extends Component {
 
     // TODO split HTML code
 
-    /* PARAMS */
+    //-------- GAME --------
+    const totalDuration = this.state.totalDuration;
+    const timeLeft = this.state.timeLeft;
+    const currentLvl = this.state.currentLvl;
+    const paused = this.state.paused;
+
     //-------- UI --------
+    const isUserChoiceOK = this.isUserChoiceOK(totalDuration);
+
     const SCROLL_DURATION = 1000;
     const stickyMenuActive = this.state.stickyMenuActive;
+
     // TODO move in his own component
-    const isUserChoiceOK = this.state.isUserChoiceOK;
     let button;
     let text = 'c\'est parti !';
     let classCss = 'material-btn';
@@ -236,15 +284,10 @@ class App extends Component {
                 smooth={true} 
                 duration={SCROLL_DURATION} 
                 className={classCss + ' active'} 
-                onClick={this.createGame}>{text}</Link>;
+                onClick={this.loadGame}>{text}</Link>;
     } else {
       button = <a href="#invalid" className={classCss}>{text}</a>;
     }
-
-    //-------- GAME --------
-    const paused = this.state.paused;
-    const timeLeft = this.state.timeLeft;
-    const totalDuration = this.state.totalDuration;
 
     return (
       <div className="App">
@@ -261,7 +304,7 @@ class App extends Component {
                 <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid" className="icon" xmlns="http://www.w3.org/2000/svg">
                   <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"></path>
                 </svg>
-                <span className="hour">d&eacute;but : 20h30 &mdash; fin : <span className={paused ? 'end deleted' : 'end'}>23h00</span> (lvl: <span className="lvl">0</span>)</span>
+                <span className="hour">d&eacute;but : 20h30 &mdash; fin : <span className={paused ? 'end deleted' : 'end'}>23h00</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl)}</span>)</span>
               </div>
               <ul className="main-nav">
                 {/* smooth scroll */}
@@ -301,7 +344,7 @@ class App extends Component {
             onEnter={this.activateStickyMenu}
           />
           <div className="clock">
-              <div className={paused ? 'time paused' : 'time'}>{isUserChoiceOK ? toDisplayingDuration(timeLeft) : PARAM_DEFAULT_TIME_LEFT_DISPLAY}</div>
+              <div className={paused ? 'time paused' : 'time'}>{isUserChoiceOK ? toDisplayingDuration(timeLeft) : UI_DEFAULT_TIME_LEFT_DISPLAY}</div>
               <div className="control">
                   {/* PREVIOUS button */}
                   <div onClick={this.previous}>
@@ -329,26 +372,52 @@ class App extends Component {
                   </div>
               </div>
           </div>
-          <div className="blinds">
-            <div className="ended">10 / 20</div>
-            <div className="current">20 / 40</div>
-            <div className="next-1">30 / 60</div>
-            <div className="next-2">50 / 100</div>
-            <div className="next">75 / 150</div>
-            <div className="next">100 / 200</div>
-            <div className="next">150 / 300</div>
-            <div className="next">200 / 400</div>
-            <div className="next">300 / 600</div>
-            <div className="next">400 / 800</div>
-            <div className="next">500 / 1000</div>
-            <div className="next">750 / 1500</div>
-            <div className="next">1000 / 2000</div> 
-            <div className="next">1000 / 2000</div>
-          </div>
+          <Blinds />
         </section>
       </div>
     );
   }
+}
+
+function Blinds(props) {
+  
+  // let blinds;
+  // TEMP_BLINDS.map((blind, i) => {
+  //   let classCss;
+  //   if (i < currentLvl) {
+  //     classCss = 'ended';
+  //   } else if (i === currentLvl) {
+  //     classCss = 'current';
+  //   } else {
+  //     if (i === currentLvl + 1) {
+  //       classCss = 'next-1';
+  //     } else if (i === currentLvl + 2) {
+  //       classCss = 'next-2';
+  //     }
+  //     classCss = 'next';
+  //   }
+
+    {/* <div key={i} className={classCss}>{blind.sb} / {blind.bb}</div> */}
+  // })
+
+  return (
+    <div className="blinds">
+    <div className="ended">10 / 20</div>
+    <div className="current">20 / 40</div>
+    <div className="next-1">30 / 60</div>
+    <div className="next-2">50 / 100</div>
+    <div className="next">75 / 150</div>
+    <div className="next">100 / 200</div>
+    <div className="next">150 / 300</div>
+    <div className="next">200 / 400</div>
+    <div className="next">300 / 600</div>
+    <div className="next">400 / 800</div>
+    <div className="next">500 / 1000</div>
+    <div className="next">750 / 1500</div>
+    <div className="next">1000 / 2000</div> 
+    <div className="next">1000 / 2000</div>
+    </div>
+  );
 }
 
 export default App;

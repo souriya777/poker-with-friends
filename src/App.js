@@ -62,13 +62,6 @@ class App extends Component {
   componentDidMount() {
     console.log('componentDidMount');
     this.init();
-
-    // FIXME to move
-    // FIXME
-    const timeLeft = [0, 27, 0];
-    this.setState({
-      timeLeft: timeLeft
-    });
   }
   
   init() {
@@ -123,6 +116,8 @@ class App extends Component {
   }
   loadConfiguration() {
     console.log('loadConfiguration');
+
+    // totalDuration
     const totalDuration = localStorage.getItem(PARAM_TOTAL_DURATION_NAME);
     if (totalDuration) {
       this.setState({
@@ -131,12 +126,24 @@ class App extends Component {
 
       // FIXME move?
       this.checkButton(totalDuration);
+
+      // FIXME to move
+      // FIXME
+      const timeLeft = [0, 27, 0];
+      this.setState({
+        timeLeft: timeLeft
+      });
     }
-  
-    // let timeLeft = localStorage.getItem(PARAM_TIME_LEFT_NAME);
-    // if (timeLeft) {
-    //   $('.js--time-left').html(timeLeft);
-    // }
+
+    // timeLeft
+    // TODO refactor conversion
+    const timeLeft = JSON.parse(localStorage.getItem(PARAM_TIME_LEFT_NAME));
+    console.log(timeLeft);
+    if (timeLeft) {
+      this.setState({
+        timeLeft: timeLeft
+      });
+    }
     
     // let currentLvl = localStorage.getItem(PARAM_CURRENT_LVL_NAME);
     // if (currentLvl) {
@@ -144,7 +151,6 @@ class App extends Component {
   };
 
   //-------- GAME --------
-  // FIXME rename?
   createGame() {
     console.log('createGame');
     this.saveConfiguration();
@@ -194,6 +200,9 @@ class App extends Component {
     this.setState({
       timeLeft: newVal
     });
+
+    // save it
+    localStorage.setItem(PARAM_TIME_LEFT_NAME, JSON.stringify(timeLeft));
 
     // when 00:00 is reached, throw an event
     // stop game OR go to next level

@@ -4,11 +4,20 @@ import { Link } from 'react-scroll';
 
 // OWN FILES
 import './App.css';
+import { toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
 
-//-------- PARAM NAMES --------
-const PARAM_TOTAL_DURATION = 'totalDuration';
-const PARAM_CURRENT_LVL = 'currentLvl';
-const PARAM_TIME_LEFT = 'timeLeft';
+//-------- GLOBAL PARAMETERS --------
+ //-------- UI --------
+const PARAM_TOTAL_DURATION_NAME = 'totalDuration';
+const PARAM_CURRENT_LVL_NAME = 'currentLvl';
+const PARAM_TIME_LEFT_NAME = 'timeLeft';
+const PARAM_SECOND = 1000;
+const PARAM_DEFAULT_TIME_LEFT_DISPLAY = '--:--';
+
+//-------- GAME --------
+const PARAM_MIN_DURATION = 1;
+const PARAM_MAX_DURATION = 4.5;
+const PARAM_STEP_DURATION = .5;
 
 /* APPLICATION */
 class App extends Component {
@@ -19,16 +28,22 @@ class App extends Component {
     this.state = {
       //-------- UI --------
       stickyMenuActive: false,
+      isUserChoiceOK: false,
 
       //-------- GAME --------
       paused: true,
-      timeLeft: '--:--',
+      timeLeft: [0, 0, 0],
       totalDuration: '',
     };
+
+    //-------- GENERAL --------
+    this.init = this.init.bind(this);
 
     //-------- UI --------
     this.activateStickyMenu = this.activateStickyMenu.bind(this);
     this.deactivateStickyMenu = this.deactivateStickyMenu.bind(this);
+    this.activateButton = this.activateButton.bind(this);
+    this.deactivateButton = this.deactivateButton.bind(this);
 
     //-------- PERSISTENCE --------
     this.saveConfiguration = this.saveConfiguration.bind(this);
@@ -40,11 +55,24 @@ class App extends Component {
     this.pause = this.pause.bind(this);
     this.previous = this.previous.bind(this);
     this.next = this.next.bind(this);
+    this.decrementTime = this.decrementTime.bind(this);
     this.handleTotalDurationChange = this.handleTotalDurationChange.bind(this);
   }
   
   componentDidMount() {
     console.log('componentDidMount');
+    this.init();
+
+    // FIXME to move
+    // FIXME
+    const timeLeft = [0, 27, 0];
+    this.setState({
+      timeLeft: timeLeft
+    });
+  }
+  
+  init() {
+    console.log('init');
     this.loadConfiguration();
   }
 
@@ -61,49 +89,78 @@ class App extends Component {
       stickyMenuActive: false
     });
   }
+  activateButton() {
+    console.log('activateButton');
+    this.setState({
+      isUserChoiceOK: true,
+    });
+  }
+  deactivateButton() {
+    console.log('deactivateButton');
+    this.setState({
+      isUserChoiceOK: false,
+    });
+  }
+  // FIXME good signature?
+  checkButton(totalDuration) {
+    const valid = this.isDurationValid(totalDuration);
+    if (valid) {
+      this.activateButton();
+    } else {
+      this.deactivateButton();
+    }
+  }
 
   //-------- PERSISTENCE --------
   saveConfiguration() {
     console.log('saveConfiguration');
     const totalDuration = this.state.totalDuration;
     if (totalDuration) {
-      localStorage.setItem(PARAM_TOTAL_DURATION, totalDuration);
+      localStorage.setItem(PARAM_TOTAL_DURATION_NAME, totalDuration);
     }
-    // localStorage.setItem(PARAM_CURRENT_LVL, 0);
-    // localStorage.setItem(PARAM_TIME_LEFT, 0);
+    // localStorage.setItem(PARAM_CURRENT_LVL_NAME, 0);
+    // localStorage.setItem(PARAM_TIME_LEFT_NAME, 0);
   }
   loadConfiguration() {
     console.log('loadConfiguration');
-    const totalDuration = localStorage.getItem(PARAM_TOTAL_DURATION);
+    const totalDuration = localStorage.getItem(PARAM_TOTAL_DURATION_NAME);
     if (totalDuration) {
       this.setState({
         totalDuration: totalDuration
       });
+
+      // FIXME move?
+      this.checkButton(totalDuration);
     }
   
-    // let timeLeft = localStorage.getItem(PARAM_TIME_LEFT);
+    // let timeLeft = localStorage.getItem(PARAM_TIME_LEFT_NAME);
     // if (timeLeft) {
     //   $('.js--time-left').html(timeLeft);
     // }
     
-    // let currentLvl = localStorage.getItem(PARAM_CURRENT_LVL);
+    // let currentLvl = localStorage.getItem(PARAM_CURRENT_LVL_NAME);
     // if (currentLvl) {
     // }
   };
 
   //-------- GAME --------
+  // FIXME rename?
   createGame() {
     console.log('createGame');
     this.saveConfiguration();
   }
   play() {
     console.log('play');
+    this.interval = setInterval(() => this.decrementTime(), PARAM_SECOND);
+
     this.setState({
       paused: false
     });
   }
   pause() {
     console.log('pause');
+    clearInterval(this.interval);
+
     this.setState({
       paused: true
     });
@@ -116,10 +173,38 @@ class App extends Component {
   }
   handleTotalDurationChange(e) {
     console.log('handleTotalDurationChange');
-    const val = e.target.value;
+    
+    // TODO improve checking
+    if(e.target.value === '' || Number.isNaN(e.target.value)) {
+      return;
+    }
+
+    const val = Number.parseFloat(e.target.value);
+    this.checkButton(val);
+    
     this.setState({
-      totalDuration: val
+      totalDuration: val,
     });
+  }
+  decrementTime() {
+    console.log('decrementTime');
+    // subtract 1s
+    const timeLeft = this.state.timeLeft;
+    const newVal = subtractOneSecond(timeLeft)
+    this.setState({
+      timeLeft: newVal
+    });
+
+    // when 00:00 is reached, throw an event
+    // stop game OR go to next level
+  }
+
+  //-------- UTILS --------
+  isDurationValid(input) {
+    console.log('isDurationValid');
+    return (!Number.isNaN(input)
+            && input >= PARAM_MIN_DURATION && input <= PARAM_MAX_DURATION 
+            && (input % PARAM_STEP_DURATION === 0));
   }
 
   render() {
@@ -127,12 +212,25 @@ class App extends Component {
     // due to react, some attributs must have been renamed (eg. stroke-linejoin => strokeLinejoin, class => className etc...)
 
     // TODO split HTML code
-    // TODO remove class like js--section-game
 
     /* PARAMS */
     //-------- UI --------
     const SCROLL_DURATION = 1000;
     const stickyMenuActive = this.state.stickyMenuActive;
+    // TODO move in his own component
+    const isUserChoiceOK = this.state.isUserChoiceOK;
+    let button;
+    let text = 'c\'est parti !';
+    let classCss = 'material-btn';
+    if (isUserChoiceOK) {
+      button = <Link to="game" 
+                smooth={true} 
+                duration={SCROLL_DURATION} 
+                className={classCss + ' active'} 
+                onClick={this.createGame}>{text}</Link>;
+    } else {
+      button = <a href="#invalid" className={classCss}>{text}</a>;
+    }
 
     //-------- GAME --------
     const paused = this.state.paused;
@@ -154,7 +252,7 @@ class App extends Component {
                 <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid" className="icon" xmlns="http://www.w3.org/2000/svg">
                   <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"></path>
                 </svg>
-                <span className="hour">d&eacute;but : 20h30 &mdash; fin : <span className={paused ? 'end deleted' : 'end'}>23h00</span> (lvl: <span className="js--lvl">0</span>)</span>
+                <span className="hour">d&eacute;but : 20h30 &mdash; fin : <span className={paused ? 'end deleted' : 'end'}>23h00</span> (lvl: <span className="lvl">0</span>)</span>
               </div>
               <ul className="main-nav">
                 {/* smooth scroll */}
@@ -171,7 +269,7 @@ class App extends Component {
           />
           {/*  */}
           <div className="one-minute-box">
-            <div className="slogan js--slogan">
+            <div className="slogan">
               <h1>Il suffit d&apos;une minute<br /> pour créer une partie de poker.</h1>
             </div>
             <div className="parameters">
@@ -182,23 +280,19 @@ class App extends Component {
                         value={totalDuration}
                         onChange={this.handleTotalDurationChange}
                         min="1" max="4.5" step="0.5" required />
-                {/* smooth scroll */}
-                <Link to="game" 
-                      smooth={true} 
-                      duration={SCROLL_DURATION} 
-                      className="material-btn js--submit" 
-                      onClick={this.createGame}>c'est parti !</Link>
+                {/* VALIDATION BUTTON */}
+                {button}
               </form>
             </div>
           </div>
         </header>
-        <section className="section-game js--section-game" id="game">
+        <section className="section-game" id="game">
           {/* HOW TO MANAGE CLEAN CODE WITH WAYPOINT? */}
           <Waypoint
             onEnter={this.activateStickyMenu}
           />
           <div className="clock">
-              <div className={paused ? 'time paused' : 'time'}>{timeLeft}</div>
+              <div className={paused ? 'time paused' : 'time'}>{isUserChoiceOK ? toDisplayingDuration(timeLeft) : PARAM_DEFAULT_TIME_LEFT_DISPLAY}</div>
               <div className="control">
                   {/* PREVIOUS button */}
                   <div onClick={this.previous}>

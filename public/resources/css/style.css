@@ -67,12 +67,20 @@ h1 {
   vertical-align: middle;
   border-radius: 4px;
   font-weight: 300;
-  background-color: #d32f2f;
   /* react adaptation */
   cursor: pointer;
+  background-color: #838383;
+  color: #505050;
+  font-style: oblique;
 }
 
-.material-btn:hover {
+.active.material-btn {
+  background-color: #d32f2f;
+  color: #fff;
+  font-style: normal;
+}
+
+.active.material-btn:hover {
   background-color: #9d2121;
   transition: background-color 0.3s;
   -webkit-transition: background-color 0.3s;

@@ -1,6 +1,23 @@
 {
   "name": "poker-with-friends",
   "version": "0.1.0",
+  "description": "Poker With Friends allows you to create a poker game at home, with friends, in less than 1 minute (even if you don't know why).",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laosoupi59/poker-with-friends.git"
+  },
+  "keywords": [
+    "poker",
+    "party",
+    "home",
+    "friends"
+  ],
+  "author": "Souriya Phongsavanh",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/laosoupi59/poker-with-friends/issues"
+  },
+  "homepage": "https://github.com/laosoupi59/poker-with-friends#readme",
   "private": true,
   "dependencies": {
     "react": "^16.8.4",

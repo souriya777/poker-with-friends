@@ -17,7 +17,7 @@ let Sound = require('react-sound').default;
 /////////////////////////////////////
 
 //-------- GENERAL --------
-const SOUND_DURATION = 1400;
+const SOUND_DURATION = 800;
 
 // TODO dynamize
 const TEMP_BLINDS = [ 
@@ -67,7 +67,7 @@ class App extends Component {
 
     this.state = {
       //-------- UI --------
-      stickyMenuActive: false,
+      stickyMenuActive: true,
       paused: true,
       playSoundNext:  Sound.status.STOPPED,
       playSoundMinute:  Sound.status.STOPPED,
@@ -226,23 +226,23 @@ class App extends Component {
   }
   stopSound() {
     console.log('stopSound');
+    clearInterval(this.intervalSnd);
     this.setState({
       playSoundNext:  Sound.status.STOPPED,
       playSoundMinute:  Sound.status.STOPPED,
       playSoundSecond:  Sound.status.STOPPED,
     });
-    clearInterval(this.intervalSnd);
   }
 
   //-------- PERSISTENCE --------
   updateDb(key, val) {
-    console.log('updateDb');
+    // console.log('updateDb');
     if (val !== undefined) {
       localStorage.setItem(key, JSON.stringify(val));
     }
   }
   readDb(key) {
-    console.log('readDb');
+    // console.log('readDb');
     return JSON.parse(localStorage.getItem(key));
   };
 
@@ -273,7 +273,7 @@ class App extends Component {
     this.updateDb(DB_KEY_START_TIME, startTime);
   }
   decrementTime() {
-    console.log('decrementTime');
+    // console.log('decrementTime');
     // subtract 1 sec.
     const timeLeft = this.state.timeLeft;
     const newVal = subtractOneSecond(timeLeft);
@@ -281,7 +281,8 @@ class App extends Component {
     // when 00:00 is reached
     if (hasExpired(newVal)) {
       // FIXME in deload game
-      this.stopSound();
+      this.playSound('playSoundNext');
+      // this.stopSound();
       this.gotoNextLvl();
       return;
     }
@@ -315,11 +316,9 @@ class App extends Component {
     this.gotoLvl(newLvl);
   }
   gotoLvl(lvl) {
-    console.log('gotoLvl');
     const totalDuration = this.state.totalDuration;
 
     // check if action is possible
-    console.log(lvl, ! this.isLvlValid(lvl));
     if(! this.isLvlValid(lvl)) {
       // FIXME move to reset
       this.pause();
@@ -348,7 +347,7 @@ class App extends Component {
 
   //-------- UTILS --------
   isDurationValid(input) {
-    console.log('isDurationValid');
+    // console.log('isDurationValid');
     return (input !== '' && !Number.isNaN(input)
             && input >= GAME_MIN_DURATION && input <= GAME_MAX_DURATION 
             && (input % GAME_STEP_DURATION === 0));
@@ -438,7 +437,7 @@ class App extends Component {
                 <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid" className="icon" xmlns="http://www.w3.org/2000/svg">
                   <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"></path>
                 </svg>
-                <span className="hour">d&eacute;but : {startTime} &mdash; fin : <span className="end">{endTime}</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl) + '/' + nbLvl}</span>)</span>
+                <span className="hour">d&eacute;but : {startTime} &mdash; fin : <span className="end">{endTime}</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl) + '/' + nbLvl}</span> &mdash; chips : 1000)</span>
               </div>
               <ul className="main-nav">
                 {/* smooth scroll */}
@@ -474,9 +473,9 @@ class App extends Component {
         </header>
         <section className="section-game" id="game">
           {/* HOW TO MANAGE CLEAN CODE WITH WAYPOINT? */}
-          <Waypoint
+          {/* <Waypoint
             onEnter={this.activateStickyMenu}
-          />
+          /> */}
           <div className="clock">
               <div className={paused ? 'time paused' : 'time'}>{isUserChoiceOK ? toDisplayingDuration(timeLeft) : UI_DEFAULT_TIME_DISPLAY}</div>
               <div className="control">
@@ -561,18 +560,23 @@ class Blinds extends Component {
 //-------- SOUNDS --------
 /////////////////////////////////////
 function Sounds (props) {
-  console.log('Sounds');
   const playSoundNext = props.playSoundNext;
   const playSoundMinute = props.playSoundMinute;
   const playSoundSecond = props.playSoundSecond;
 
   let render;
   if (Sound.status.PLAYING === playSoundNext) {
+    console.log('Sounds NEXT');
     render =  <Sound url="resources/mp3/next.mp3" playStatus={Sound.status.PLAYING} playFromPosition={0} />;
   } else if (Sound.status.PLAYING === playSoundMinute) {
+    console.log('Sounds MINUTE');
     render =  <Sound url="resources/mp3/minute.mp3" playStatus={Sound.status.PLAYING} playFromPosition={0} />;
   } else if (Sound.status.PLAYING === playSoundSecond) {
+    console.log('Sounds PLAYING');
     render =  <Sound url="resources/mp3/second.mp3" playStatus={Sound.status.PLAYING} playFromPosition={0} />;
+  } else {
+    console.log('Sounds NOTHING');
+    render = '';
   }
 
   return (

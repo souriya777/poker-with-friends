@@ -5,7 +5,7 @@ import { Link } from 'react-scroll';
 // OWN FILES
 import './App.css';
 import { calculateLevelDuration } from './game/Game';
-import { toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
+import { toDisplayingStartTime, toDisplayingEndTime, toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
 
 // SPECIAL LIB : SOUND
 let Sound = require('react-sound').default;
@@ -17,7 +17,7 @@ let Sound = require('react-sound').default;
 /////////////////////////////////////
 
 //-------- GENERAL --------
-const ONE_SECOND = 1000;
+const SOUND_DURATION = 1400;
 
 // TODO dynamize
 const TEMP_BLINDS = [ 
@@ -31,18 +31,25 @@ const TEMP_BLINDS = [
   { sb: 200, bb: 400 },
   { sb: 300, bb: 600 },
   { sb: 400, bb: 800 },
-  { sb: 500, bb: 1000 },
+  { sb: 500, bb: 1000 }, // USUALLY END LVL
   { sb: 750, bb: 1500 },
   { sb: 1000, bb: 2000 }, 
 ];
+/* TODO dynamize calcul of expectedLvl
+    In the old version, it was : blind.bb >= this.startingStack
+}*/
+const USUALLY_END_LVL = 10;
 
 //-------- UI --------
-const UI_DEFAULT_TIME_LEFT_DISPLAY = '--:--';
+// FIXME move to UTILS?
+const UI_DEFAULT_TIME_DISPLAY = '--:--';
+const UI_DEFAULT_HOUR_DISPLAY = '--h--';
 
 //-------- PERSISTENCE --------
 const DB_KEY_TOTAL_DURATION = 'totalDuration';
 const DB_KEY_TIME_LEFT = 'timeLeft';
 const DB_KEY_CURRENT_LVL = 'currentLvl';
+const DB_KEY_START_TIME = 'startTime';
 
 //-------- GAME --------
 const GAME_MIN_DURATION = 1;
@@ -69,7 +76,8 @@ class App extends Component {
       //-------- GAME --------
       totalDuration: [0, 0, 0],
       timeLeft: [0, 0, 0],
-      currentLvl: 0
+      currentLvl: 0,
+      startTime: UI_DEFAULT_HOUR_DISPLAY
     };
 
     //-------- GENERAL --------
@@ -79,12 +87,16 @@ class App extends Component {
     this.activateStickyMenu = this.activateStickyMenu.bind(this);
     this.deactivateStickyMenu = this.deactivateStickyMenu.bind(this);
     this.handleTotalDurationChange = this.handleTotalDurationChange.bind(this);
+    this.updateTime = this.updateTime.bind(this);
     this.isUserChoiceOK = this.isUserChoiceOK.bind(this);
     this.play = this.play.bind(this);
     this.pause = this.pause.bind(this);
     this.previous = this.previous.bind(this);
     this.next = this.next.bind(this);
+    this.startTimer = this.startTimer.bind(this);
+    this.stopTimer = this.stopTimer.bind(this);
     this.playSound = this.playSound.bind(this);
+    this.stopSound = this.stopSound.bind(this);
 
     //-------- PERSISTENCE --------
     this.updateDb = this.updateDb.bind(this);
@@ -102,6 +114,12 @@ class App extends Component {
     console.log('componentDidMount');
     this.init();
   }
+
+  componentWillUnmount() {
+    // FIXME move to reset
+    clearInterval(this.interval);
+    clearInterval(this.intervalSnd);
+  }
   
   //-------- GENERAL --------
   init() {
@@ -111,6 +129,7 @@ class App extends Component {
     const totalDuration = this.readDb(DB_KEY_TOTAL_DURATION);
     const timeLeft = this.readDb(DB_KEY_TIME_LEFT);
     const currentLvl = this.readDb(DB_KEY_CURRENT_LVL);
+    const startTime = this.readDb(DB_KEY_START_TIME);
 
     if (totalDuration) {
       this.setState({ totalDuration: totalDuration });
@@ -120,6 +139,9 @@ class App extends Component {
     } 
     if (currentLvl) {
       this.setState({ currentLvl: currentLvl });
+    }
+    if (startTime) {
+      this.setState({ startTime: startTime });
     }
   }
 
@@ -144,8 +166,19 @@ class App extends Component {
     }
     
     const totalDuration = this.toDuration(e.target.value);
+    const timeLeft = calculateLevelDuration(totalDuration);
     this.setState({
-      totalDuration: totalDuration
+      totalDuration: totalDuration,
+      timeLeft: timeLeft
+    });
+
+    this.updateTime();
+  }
+  updateTime() {
+    console.log('updateStartTime');
+    const startTime = toDisplayingStartTime(new Date());
+    this.setState({
+      startTime: startTime
     });
   }
   isUserChoiceOK(totalDuration) {
@@ -153,16 +186,14 @@ class App extends Component {
   }
   play() {
     console.log('play');
-    this.interval = setInterval(() => this.decrementTime(), ONE_SECOND);
-
+    this.startTimer();
     this.setState({
       paused: false
     });
   }
   pause() {
     console.log('pause');
-    clearInterval(this.interval);
-
+    this.stopTimer();
     this.setState({
       paused: true
     });
@@ -177,11 +208,30 @@ class App extends Component {
     this.gotoNextLvl();
     this.playSound('playSoundNext');
   }
+  startTimer() {
+    console.log('startTimer');
+    this.interval = setInterval(this.decrementTime, 1000);
+  }
+  stopTimer() {
+    console.log('stopTimer');
+    clearInterval(this.interval);
+    clearInterval(this.intervalSnd);
+  }
   playSound(key) {
     console.log('playSound');
     this.setState({
       [key]: Sound.status.PLAYING
     });
+    this.intervalSnd = setInterval(() => this.stopSound(), SOUND_DURATION);
+  }
+  stopSound() {
+    console.log('stopSound');
+    this.setState({
+      playSoundNext:  Sound.status.STOPPED,
+      playSoundMinute:  Sound.status.STOPPED,
+      playSoundSecond:  Sound.status.STOPPED,
+    });
+    clearInterval(this.intervalSnd);
   }
 
   //-------- PERSISTENCE --------
@@ -200,31 +250,52 @@ class App extends Component {
   //-------- GAME --------
   loadGame() {
     console.log('loadGame');
-    let totalDuration, timeLeft, currentLvl;
+    let totalDuration, timeLeft, currentLvl, startTime;
 
     // totalDuration is previously in STATE (see. handleTotalDurationChange)
     totalDuration = this.state.totalDuration;
     timeLeft = calculateLevelDuration(totalDuration);
     currentLvl = 0;
+    startTime = toDisplayingStartTime();
 
     // update STATE
     this.setState({
       totalDuration: totalDuration,
       timeLeft: timeLeft,
-      currentLvl: currentLvl
+      currentLvl: currentLvl,
+      startTime: startTime,
     });
 
     // update DB
     this.updateDb(DB_KEY_TOTAL_DURATION, totalDuration);
     this.updateDb(DB_KEY_TIME_LEFT, timeLeft);
     this.updateDb(DB_KEY_CURRENT_LVL, currentLvl);
+    this.updateDb(DB_KEY_START_TIME, startTime);
   }
   decrementTime() {
     console.log('decrementTime');
     // subtract 1 sec.
-    const timeLeft = this.state.timeLeft
-    const newVal = subtractOneSecond(timeLeft)
+    const timeLeft = this.state.timeLeft;
+    const newVal = subtractOneSecond(timeLeft);
 
+    // when 00:00 is reached
+    if (hasExpired(newVal)) {
+      // FIXME in deload game
+      this.stopSound();
+      this.gotoNextLvl();
+      return;
+    }
+
+    // when 1 minute left, play sound
+    if (isNearTheEndLevel(newVal)) {
+      this.playSound('playSoundMinute');
+    }
+
+    // FIXME when 5 to 0 second left, play sound SECOND + NEXT
+    if (isTheEndLevel(newVal)) {
+      this.playSound('playSoundSecond');
+    }
+    
     // update STATE
     this.setState({
       timeLeft: newVal
@@ -232,9 +303,6 @@ class App extends Component {
 
     // update DB
     this.updateDb(DB_KEY_TIME_LEFT, newVal);
-
-    // when 00:00 is reached, throw an event
-    // stop game OR go to next level
   }
   gotoPreviousLvl() {
     console.log('gotoPreviousLvl');
@@ -248,22 +316,35 @@ class App extends Component {
   }
   gotoLvl(lvl) {
     console.log('gotoLvl');
+    const totalDuration = this.state.totalDuration;
 
-    // FIXME move functionnal code?
     // check if action is possible
-    if(lvl < 0 || lvl >= TEMP_BLINDS.length) {
+    console.log(lvl, ! this.isLvlValid(lvl));
+    if(! this.isLvlValid(lvl)) {
+      // FIXME move to reset
+      this.pause();
+      if (lvl === -1) {
+        const timeLeft = calculateLevelDuration(totalDuration);
+        this.setState({
+          timeLeft: timeLeft,
+        });
+      }
+
       return;
     }
 
     // update STATE
-    this.setState({currentLvl: lvl});
+    const timeLeft = calculateLevelDuration(totalDuration);
+    this.setState({
+      currentLvl: lvl,
+      timeLeft: timeLeft,
+    });
 
-    // update DB
-    this.updateDb(DB_KEY_CURRENT_LVL, lvl)
-
-    // TODO play sound
-
+    // // update DB
+    this.updateDb(DB_KEY_CURRENT_LVL, lvl);
+    this.updateDb(DB_KEY_TIME_LEFT, timeLeft);
   }
+
 
   //-------- UTILS --------
   isDurationValid(input) {
@@ -271,6 +352,10 @@ class App extends Component {
     return (input !== '' && !Number.isNaN(input)
             && input >= GAME_MIN_DURATION && input <= GAME_MAX_DURATION 
             && (input % GAME_STEP_DURATION === 0));
+  }
+  isLvlValid(input) {
+    console.log('isLvlValid');
+    return (input >= 0 && input < TEMP_BLINDS.length);
   }
   toDisplayingLvl(input) {
     return input + 1;
@@ -288,6 +373,7 @@ class App extends Component {
     const [h, m] = duration;
     return (h === 0 && m === 0) ? '' : h + (m / 60);
   }
+  
 
 
   render() {
@@ -301,6 +387,17 @@ class App extends Component {
     const timeLeft = this.state.timeLeft;
     const currentLvl = this.state.currentLvl;
     const paused = this.state.paused;
+    const startTime = this.state.startTime;
+    const nbLvl = TEMP_BLINDS.length;
+
+    // 
+    // FIXME refactor
+    const lvlDuration = calculateLevelDuration(totalDuration);
+    // timeLeft is lvl duration
+    const endTime = 
+      (startTime === UI_DEFAULT_HOUR_DISPLAY) ? UI_DEFAULT_HOUR_DISPLAY : toDisplayingEndTime(new Date(), timeLeft, currentLvl, lvlDuration, USUALLY_END_LVL);
+    // 
+
 
     //-------- UI --------
     const totalDurationDisplay = this.toNumber(totalDuration);
@@ -341,7 +438,7 @@ class App extends Component {
                 <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid" className="icon" xmlns="http://www.w3.org/2000/svg">
                   <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"></path>
                 </svg>
-                <span className="hour">d&eacute;but : 20h30 &mdash; fin : <span className={paused ? 'end deleted' : 'end'}>23h00</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl)}</span>)</span>
+                <span className="hour">d&eacute;but : {startTime} &mdash; fin : <span className="end">{endTime}</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl) + '/' + nbLvl}</span>)</span>
               </div>
               <ul className="main-nav">
                 {/* smooth scroll */}
@@ -381,7 +478,7 @@ class App extends Component {
             onEnter={this.activateStickyMenu}
           />
           <div className="clock">
-              <div className={paused ? 'time paused' : 'time'}>{isUserChoiceOK ? toDisplayingDuration(timeLeft) : UI_DEFAULT_TIME_LEFT_DISPLAY}</div>
+              <div className={paused ? 'time paused' : 'time'}>{isUserChoiceOK ? toDisplayingDuration(timeLeft) : UI_DEFAULT_TIME_DISPLAY}</div>
               <div className="control">
                   {/* PREVIOUS button */}
                   <div onClick={this.previous}>
@@ -414,11 +511,13 @@ class App extends Component {
         </section>
 
         {/* SOUNDS */}
-        <Sounds playSoundNext={playSoundNext} playSoundMinute={playSoundMinute} playSoundSecond={playSoundSecond} />
+        <Sounds 
+          playSoundNext={playSoundNext} playSoundMinute={playSoundMinute} playSoundSecond={playSoundSecond} />
       </div>
     );
   }
 }
+
 
 /////////////////////////////////////
 //-------- BLINDS --------
@@ -457,6 +556,7 @@ class Blinds extends Component {
   }
 }
 
+
 /////////////////////////////////////
 //-------- SOUNDS --------
 /////////////////////////////////////
@@ -466,23 +566,18 @@ function Sounds (props) {
   const playSoundMinute = props.playSoundMinute;
   const playSoundSecond = props.playSoundSecond;
 
+  let render;
+  if (Sound.status.PLAYING === playSoundNext) {
+    render =  <Sound url="resources/mp3/next.mp3" playStatus={Sound.status.PLAYING} playFromPosition={0} />;
+  } else if (Sound.status.PLAYING === playSoundMinute) {
+    render =  <Sound url="resources/mp3/minute.mp3" playStatus={Sound.status.PLAYING} playFromPosition={0} />;
+  } else if (Sound.status.PLAYING === playSoundSecond) {
+    render =  <Sound url="resources/mp3/second.mp3" playStatus={Sound.status.PLAYING} playFromPosition={0} />;
+  }
+
   return (
     <>
-      <Sound
-        url="resources/mp3/next.mp3"
-        playStatus={playSoundNext}
-        playFromPosition={0}
-      />
-      <Sound
-        url="resources/mp3/minute.mp3"
-        playStatus={playSoundMinute}
-        playFromPosition={0}
-      />
-      <Sound
-        url="resources/mp3/second.mp3"
-        playStatus={playSoundSecond}
-        playFromPosition={0}
-      />
+      {render}
     </>
   );
 }

@@ -7,6 +7,9 @@ import './App.css';
 import { calculateLevelDuration } from './game/Game';
 import { toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
 
+// SPECIAL LIB : SOUND
+let Sound = require('react-sound').default;
+
 // TODO simplify Game.js, Tournament.js, Chips.js
 
 /////////////////////////////////////
@@ -59,6 +62,9 @@ class App extends Component {
       //-------- UI --------
       stickyMenuActive: false,
       paused: true,
+      playSoundNext:  Sound.status.STOPPED,
+      playSoundMinute:  Sound.status.STOPPED,
+      playSoundSecond:  Sound.status.STOPPED,
 
       //-------- GAME --------
       totalDuration: [0, 0, 0],
@@ -78,6 +84,7 @@ class App extends Component {
     this.pause = this.pause.bind(this);
     this.previous = this.previous.bind(this);
     this.next = this.next.bind(this);
+    this.playSound = this.playSound.bind(this);
 
     //-------- PERSISTENCE --------
     this.updateDb = this.updateDb.bind(this);
@@ -163,12 +170,19 @@ class App extends Component {
   previous() {
     console.log('previous');
     this.gotoPreviousLvl();
+    this.playSound('playSoundNext');
   }
   next() {
     console.log('next');
     this.gotoNextLvl();
+    this.playSound('playSoundNext');
   }
-
+  playSound(key) {
+    console.log('playSound');
+    this.setState({
+      [key]: Sound.status.PLAYING
+    });
+  }
 
   //-------- PERSISTENCE --------
   updateDb(key, val) {
@@ -188,14 +202,10 @@ class App extends Component {
     console.log('loadGame');
     let totalDuration, timeLeft, currentLvl;
 
-    // 2 CASES
-    // The 1st time
     // totalDuration is previously in STATE (see. handleTotalDurationChange)
     totalDuration = this.state.totalDuration;
     timeLeft = calculateLevelDuration(totalDuration);
     currentLvl = 0;
-
-    // The other times
 
     // update STATE
     this.setState({
@@ -298,6 +308,9 @@ class App extends Component {
 
     const SCROLL_DURATION = 1000;
     const stickyMenuActive = this.state.stickyMenuActive;
+    const playSoundNext = this.state.playSoundNext;
+    const playSoundMinute = this.state.playSoundMinute;
+    const playSoundSecond = this.state.playSoundSecond;
 
     // TODO move in his own component
     let button;
@@ -396,13 +409,20 @@ class App extends Component {
                   </div>
               </div>
           </div>
+          {/* BLINDS */}
           <Blinds blinds={TEMP_BLINDS} currentLvl={currentLvl} />
         </section>
+
+        {/* SOUNDS */}
+        <Sounds playSoundNext={playSoundNext} playSoundMinute={playSoundMinute} playSoundSecond={playSoundSecond} />
       </div>
     );
   }
 }
 
+/////////////////////////////////////
+//-------- BLINDS --------
+/////////////////////////////////////
 class Blinds extends Component {
   constructor(props) {
     super(props);
@@ -435,6 +455,36 @@ class Blinds extends Component {
       <div className="blinds">{blindsList}</div>
     );
   }
+}
+
+/////////////////////////////////////
+//-------- SOUNDS --------
+/////////////////////////////////////
+function Sounds (props) {
+  console.log('Sounds');
+  const playSoundNext = props.playSoundNext;
+  const playSoundMinute = props.playSoundMinute;
+  const playSoundSecond = props.playSoundSecond;
+
+  return (
+    <>
+      <Sound
+        url="resources/mp3/next.mp3"
+        playStatus={playSoundNext}
+        playFromPosition={0}
+      />
+      <Sound
+        url="resources/mp3/minute.mp3"
+        playStatus={playSoundMinute}
+        playFromPosition={0}
+      />
+      <Sound
+        url="resources/mp3/second.mp3"
+        playStatus={playSoundSecond}
+        playFromPosition={0}
+      />
+    </>
+  );
 }
 
 

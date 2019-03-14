@@ -278,15 +278,15 @@ class App extends Component {
     // TODO move in his own component
     let button;
     let text = 'c\'est parti !';
-    let classCss = 'material-btn';
+    let cssClass = 'material-btn';
     if (isUserChoiceOK) {
       button = <Link to="game" 
                 smooth={true} 
                 duration={SCROLL_DURATION} 
-                className={classCss + ' active'} 
+                className={cssClass + ' active'} 
                 onClick={this.loadGame}>{text}</Link>;
     } else {
-      button = <a href="#invalid" className={classCss}>{text}</a>;
+      button = <a href="#invalid" className={cssClass}>{text}</a>;
     }
 
     return (
@@ -372,52 +372,46 @@ class App extends Component {
                   </div>
               </div>
           </div>
-          <Blinds />
+          <Blinds blinds={TEMP_BLINDS} currentLvl={currentLvl} />
         </section>
       </div>
     );
   }
 }
 
-function Blinds(props) {
+class Blinds extends Component {
+  constructor(props) {
+    super(props);
+    this.html = this.html.bind(this);
+  }
+
+  html(elt, index) {
+    const currentLvl = this.props.currentLvl;
+    let cssClass;
+
+    if (index < currentLvl) {
+      cssClass = 'ended';
+    } else if (index === currentLvl) {
+      cssClass = 'current';
+    } else if (index === (currentLvl + 1)) {
+        cssClass = 'next-1';
+    } else if (index === (currentLvl + 2)) {
+      cssClass = 'next-2';
+    } else {
+      cssClass = 'next';
+    }
   
-  // let blinds;
-  // TEMP_BLINDS.map((blind, i) => {
-  //   let classCss;
-  //   if (i < currentLvl) {
-  //     classCss = 'ended';
-  //   } else if (i === currentLvl) {
-  //     classCss = 'current';
-  //   } else {
-  //     if (i === currentLvl + 1) {
-  //       classCss = 'next-1';
-  //     } else if (i === currentLvl + 2) {
-  //       classCss = 'next-2';
-  //     }
-  //     classCss = 'next';
-  //   }
+    return <div key={elt.sb} className={cssClass}>{elt.sb} / {elt.bb}</div>;
+  }
 
-    {/* <div key={i} className={classCss}>{blind.sb} / {blind.bb}</div> */}
-  // })
-
-  return (
-    <div className="blinds">
-    <div className="ended">10 / 20</div>
-    <div className="current">20 / 40</div>
-    <div className="next-1">30 / 60</div>
-    <div className="next-2">50 / 100</div>
-    <div className="next">75 / 150</div>
-    <div className="next">100 / 200</div>
-    <div className="next">150 / 300</div>
-    <div className="next">200 / 400</div>
-    <div className="next">300 / 600</div>
-    <div className="next">400 / 800</div>
-    <div className="next">500 / 1000</div>
-    <div className="next">750 / 1500</div>
-    <div className="next">1000 / 2000</div> 
-    <div className="next">1000 / 2000</div>
-    </div>
-  );
+  render() {
+    const blinds = this.props.blinds;
+    const blindsList = blinds.map(this.html);
+    return (
+      <div className="blinds">{blindsList}</div>
+    );
+  }
 }
+
 
 export default App;

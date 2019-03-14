@@ -4,7 +4,10 @@ import { Link } from 'react-scroll';
 
 // OWN FILES
 import './App.css';
+import { calculateLevelDuration } from './game/Game';
 import { toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
+
+// TODO simplify Game.js, Tournament.js, Chips.js
 
 /////////////////////////////////////
 //-------- GLOBAL PARAMETERS --------
@@ -58,7 +61,7 @@ class App extends Component {
       paused: true,
 
       //-------- GAME --------
-      totalDuration: '',
+      totalDuration: [0, 0, 0],
       timeLeft: [0, 0, 0],
       currentLvl: 0
     };
@@ -108,12 +111,6 @@ class App extends Component {
     if (timeLeft) {
       this.setState({ timeLeft: timeLeft });
     } 
-    else {
-      // TODO dynamize
-      this.setState({
-        timeLeft: [0, 27, 0]
-      });
-    }
     if (currentLvl) {
       this.setState({ currentLvl: currentLvl });
     }
@@ -138,9 +135,10 @@ class App extends Component {
     if(! this.isDurationValid(input)) {
       return;
     }
-    const val = Number.parseFloat(e.target.value);
+    
+    const totalDuration = this.toDuration(e.target.value);
     this.setState({
-      totalDuration: val,
+      totalDuration: totalDuration
     });
   }
   isUserChoiceOK(totalDuration) {
@@ -188,13 +186,25 @@ class App extends Component {
   //-------- GAME --------
   loadGame() {
     console.log('loadGame');
-    // totalDuration is previously in STATE (see. handleTotalDurationChange)
-    const totalDuration = this.state.totalDuration;
-    // TODO timeLeft is calculated
-    const timeLeft = [0, 15, 0];
-    const currentLvl = 0;
+    let totalDuration, timeLeft, currentLvl;
 
-    // persist
+    // 2 CASES
+    // The 1st time
+    // totalDuration is previously in STATE (see. handleTotalDurationChange)
+    totalDuration = this.state.totalDuration;
+    timeLeft = calculateLevelDuration(totalDuration);
+    currentLvl = 0;
+
+    // The other times
+
+    // update STATE
+    this.setState({
+      totalDuration: totalDuration,
+      timeLeft: timeLeft,
+      currentLvl: currentLvl
+    });
+
+    // update DB
     this.updateDb(DB_KEY_TOTAL_DURATION, totalDuration);
     this.updateDb(DB_KEY_TIME_LEFT, timeLeft);
     this.updateDb(DB_KEY_CURRENT_LVL, currentLvl);
@@ -255,6 +265,19 @@ class App extends Component {
   toDisplayingLvl(input) {
     return input + 1;
   }
+  // convert 1.5 to [1, 30, 0]
+  toDuration(myNumber) {
+    const val = myNumber.replace(',', '.');
+    const h = Math.trunc(val);
+    const m = (val - h) * 60;
+
+    return [h, m, 0];
+  }
+   // convert [1, 30, 0] to 1.5
+  toNumber(duration) {
+    const [h, m] = duration;
+    return (h === 0 && m === 0) ? '' : h + (m / 60);
+  }
 
 
   render() {
@@ -270,7 +293,8 @@ class App extends Component {
     const paused = this.state.paused;
 
     //-------- UI --------
-    const isUserChoiceOK = this.isUserChoiceOK(totalDuration);
+    const totalDurationDisplay = this.toNumber(totalDuration);
+    const isUserChoiceOK = this.isUserChoiceOK(totalDurationDisplay);
 
     const SCROLL_DURATION = 1000;
     const stickyMenuActive = this.state.stickyMenuActive;
@@ -329,7 +353,7 @@ class App extends Component {
                 <input type="number" 
                         placeholder="Durée (H)" 
                         className="total-duration" 
-                        value={totalDuration}
+                        value={totalDurationDisplay}
                         onChange={this.handleTotalDurationChange}
                         min="1" max="4.5" step="0.5" required />
                 {/* VALIDATION BUTTON */}

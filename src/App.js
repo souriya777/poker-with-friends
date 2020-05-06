@@ -49,6 +49,7 @@ const STARTING_STACK = calculateStartingStack(BLINDS);
 //-------- APPLICATION --------
 /////////////////////////////////////
 class App extends Component {
+  
   constructor(props) {
     super(props);
 

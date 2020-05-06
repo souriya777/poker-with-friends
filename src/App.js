@@ -4,7 +4,7 @@ import { Link } from 'react-scroll';
 
 // OWN FILES
 import './App.css';
-import { calculateLevelDuration } from './game/Game';
+import { BLINDS_EAGLES, calculateLevelDuration, calculateStartingStack } from './game/Game';
 import { toDisplayingStartTime, toDisplayingEndTime, toDisplayingDuration, subtractOneSecond, hasExpired, isNearTheEndLevel, isTheEndLevel } from './utils/DateUtils';
 
 // SPECIAL LIB : SOUND
@@ -20,21 +20,7 @@ let Sound = require('react-sound').default;
 const SOUND_DURATION = 800;
 
 // TODO dynamize
-const TEMP_BLINDS = [ 
-  { sb: 10, bb: 20 },
-  { sb: 20, bb: 40 },
-  { sb: 30, bb: 60 },
-  { sb: 50, bb: 100 },
-  { sb: 75, bb: 150 },
-  { sb: 100, bb: 200 },
-  { sb: 150, bb: 300 },
-  { sb: 200, bb: 400 },
-  { sb: 300, bb: 600 },
-  { sb: 400, bb: 800 },
-  { sb: 500, bb: 1000 }, // USUALLY END LVL
-  { sb: 750, bb: 1500 },
-  { sb: 1000, bb: 2000 }, 
-];
+const BLINDS = BLINDS_EAGLES[1];
 /* TODO dynamize calcul of expectedLvl
     In the old version, it was : blind.bb >= this.startingStack
 }*/
@@ -55,6 +41,8 @@ const DB_KEY_START_TIME = 'startTime';
 const GAME_MIN_DURATION = 1;
 const GAME_MAX_DURATION = 4.5;
 const GAME_STEP_DURATION = .5;
+// FIXME
+const STARTING_STACK = calculateStartingStack(BLINDS);
 
 
 /////////////////////////////////////
@@ -354,7 +342,7 @@ class App extends Component {
   }
   isLvlValid(input) {
     console.log('isLvlValid');
-    return (input >= 0 && input < TEMP_BLINDS.length);
+    return (input >= 0 && input < BLINDS.length);
   }
   toDisplayingLvl(input) {
     return input + 1;
@@ -387,7 +375,8 @@ class App extends Component {
     const currentLvl = this.state.currentLvl;
     const paused = this.state.paused;
     const startTime = this.state.startTime;
-    const nbLvl = TEMP_BLINDS.length;
+    const nbLvl = BLINDS.length;
+    const startingStack = STARTING_STACK;
 
     // 
     // FIXME refactor
@@ -437,7 +426,7 @@ class App extends Component {
                 <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid" className="icon" xmlns="http://www.w3.org/2000/svg">
                   <path d="M15 1H9v2h6V1zm-4 13h2V8h-2v6zm8.03-6.61l1.42-1.42c-.43-.51-.9-.99-1.41-1.41l-1.42 1.42C16.07 4.74 14.12 4 12 4c-4.97 0-9 4.03-9 9s4.02 9 9 9 9-4.03 9-9c0-2.12-.74-4.07-1.97-5.61zM12 20c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7z"></path>
                 </svg>
-                <span className="hour">d&eacute;but : {startTime} &mdash; fin : <span className="end">{endTime}</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl) + '/' + nbLvl}</span> &mdash; chips : 1000)</span>
+                <span className="hour">d&eacute;but : {startTime} &mdash; fin : <span className="end">{endTime}</span> (lvl: <span className="lvl">{this.toDisplayingLvl(currentLvl) + '/' + nbLvl}</span> &mdash; chips : {startingStack})</span>
               </div>
               <ul className="main-nav">
                 {/* smooth scroll */}
@@ -506,7 +495,7 @@ class App extends Component {
               </div>
           </div>
           {/* BLINDS */}
-          <Blinds blinds={TEMP_BLINDS} currentLvl={currentLvl} />
+          <Blinds blinds={BLINDS} currentLvl={currentLvl} />
         </section>
 
         {/* SOUNDS */}

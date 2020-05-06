@@ -4,7 +4,8 @@ import { CHIPS } from './Chips';
 // see https://docs.google.com/spreadsheets/d/1nGHYvef9HzzNzFLP3r9zFiMbMX7tdMbjLZhdbo4nz3w/edit#gid=1707376382
 // see https://poker.stackexchange.com/questions/203/looking-for-the-bb-m-math-to-build-good-nlhe-tourney-blind-structures
 // see https://www.pokereagles.com/home-poker/tournament-blinds.php
-const BLINDS_EAGLES =  [
+// FIXME not export const ?
+export const BLINDS_EAGLES =  [
   [ 
     { sb: 1, bb: 2 },
     { sb: 2, bb: 4 },
@@ -16,7 +17,7 @@ const BLINDS_EAGLES =  [
     { sb: 20, bb: 40 },
     { sb: 30, bb: 60 },
     { sb: 40, bb: 80 },
-    { sb: 50, bb: 100 },
+    { sb: 50, bb: 100 }, // USUALLY END LVL
     { sb: 75, bb: 150 },
     { sb: 100, bb: 200 }, 
   ],
@@ -31,7 +32,7 @@ const BLINDS_EAGLES =  [
     { sb: 200, bb: 400 },
     { sb: 300, bb: 600 },
     { sb: 400, bb: 800 },
-    { sb: 500, bb: 1000 },
+    { sb: 500, bb: 1000 }, // USUALLY END LVL
     { sb: 750, bb: 1500 },
     { sb: 1000, bb: 2000 }, 
   ]
@@ -91,7 +92,7 @@ export const calculateLevelDuration = ([h, m, s]) => {
 };
 
 export const calculateStartingStack = (chips) => {
-  return (chips === CHIPS[0]) ? 100 : 1000;
+  return (chips === CHIPS[0]) ? 200 : 2000;
 };
 
 export const calculateBlinds = (chips) => {
